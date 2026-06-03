@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMA Service Points — Zone Rings</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{--bg:#f4f6f8;--panel:#ffffff;--line:#d7dde3;--txt:#1b2127;--mut:#5c6773;--red:#e02d3c;--grn:#1a9850;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);font-family:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;}
+  #map{position:absolute;top:0;left:0;right:0;bottom:0;}
+  .leaflet-container{background:#dfe6ec;}
+  #panel{position:absolute;top:12px;left:12px;z-index:1000;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;width:252px;box-shadow:0 6px 20px rgba(0,0,0,.18);max-height:92vh;overflow:auto;}
+  #panel h1{font-size:13px;margin:0 0 2px;letter-spacing:.5px;}
+  #panel .sub{font-size:10px;color:var(--mut);margin-bottom:10px;}
+  .row{display:flex;align-items:center;gap:9px;font-size:12px;margin:5px 0;cursor:pointer;user-select:none;}
+  .dot{width:13px;height:13px;border-radius:50%;flex:0 0 auto;border:1.5px solid #333;}
+  .cnt{margin-left:auto;color:var(--mut);font-size:11px;}
+  .lab{font-size:10px;color:var(--mut);letter-spacing:.5px;margin:11px 0 5px;text-transform:uppercase;display:flex;justify-content:space-between;}
+  .lab a{color:var(--mut);text-decoration:underline;cursor:pointer;text-transform:none;}
+  .zr{display:flex;align-items:center;gap:8px;font-size:11px;cursor:pointer;user-select:none;margin:3px 0;}
+  .zr.off{opacity:.3;}
+  .sw{width:16px;height:0;border-top:3px solid #333;flex:0 0 auto;border-radius:2px;}
+  .zr .c{margin-left:auto;color:var(--mut);}
+  .zr .mi{color:var(--mut);font-size:10px;}
+  #prog{margin-top:11px;font-size:10px;color:var(--mut);}
+  #bar{height:4px;background:#e3e8ec;border-radius:3px;margin-top:5px;overflow:hidden;}
+  #bar>div{height:100%;width:0;background:var(--grn);transition:width .2s;}
+  .ringlbl{font-size:10px;font-weight:700;color:#fff;background:rgba(0,0,0,.55);padding:1px 5px;border-radius:4px;white-space:nowrap;border:1px solid rgba(255,255,255,.4);}
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:7px;font-family:inherit;}
+  .pp b{font-size:13px;} .pp span{color:var(--mut);font-size:11px;}
+  .pp .tag{display:inline-block;margin-top:5px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;}
+  .pp .tag.red{background:rgba(224,45,60,.15);color:var(--red);}
+  .pp .tag.grn{background:rgba(26,152,80,.15);color:var(--grn);}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>AMA SERVICE POINTS</h1>
+  <div class="sub">EFW / HomeNow &middot; 290 zips</div>
+  <div class="row" id="qr1"><span class="dot" style="background:var(--red)"></span>Quote only<span class="cnt">149</span></div>
+  <div class="row" id="qr0"><span class="dot" style="background:var(--grn)"></span>Served<span class="cnt">141</span></div>
+  <div class="lab">Zone rings (outer edge, drive mi)<a id="allrings">all on/off</a></div>
+  <div id="rings"></div>
+  <div id="prog">Geocoding zips… <span id="pct">0%</span><div id="bar"><div></div></div></div>
+</div>
+<script>
+const POINTS=[["79117", 0, "Amarillo", 0, "A"], ["79108", 0, "Amarillo", 1, "A"], ["79107", 0, "Amarillo", 7, "A"], ["79104", 0, "Amarillo", 8, "A"], ["79105", 0, "Amarillo", 9, "A"], ["79159", 0, "Amarillo", 9, "A"], ["79103", 0, "Amarillo", 10, "A"], ["79101", 0, "Amarillo", 11, "A"], ["79102", 0, "Amarillo", 12, "A"], ["79116", 0, "Amarillo", 12, "A"], ["79106", 0, "Amarillo", 14, "A"], ["79111", 0, "Amarillo", 14, "A"], ["79120", 0, "Amarillo", 14, "A"], ["79124", 0, "Amarillo", 14, "A"], ["79166", 0, "Amarillo", 14, "A"], ["79168", 0, "Amarillo", 14, "A"], ["79172", 0, "Amarillo", 14, "A"], ["79174", 0, "Amarillo", 14, "A"], ["79185", 0, "Amarillo", 14, "A"], ["79189", 0, "Amarillo", 14, "A"], ["79109", 0, "Amarillo", 16, "B"], ["79110", 0, "Amarillo", 16, "B"], ["79114", 0, "Amarillo", 16, "B"], ["79178", 0, "Amarillo", 16, "B"], ["79118", 0, "Amarillo", 17, "B"], ["79121", 0, "Amarillo", 17, "B"], ["79012", 0, "Bushland", 23, "B"], ["79119", 0, "Amarillo", 24, "B"], ["79016", 0, "Canyon", 28, "B"], ["79015", 0, "Canyon", 28, "B"], ["79068", 0, "Panhandle", 29, "B"], ["79098", 0, "Wildorado", 30, "B"], ["79058", 0, "Masterson", 31, "C"], ["79019", 0, "Claude", 32, "C"], ["79036", 0, "Fritch", 35, "C"], ["79010", 0, "Boys Ranch", 38, "C"], ["79097", 0, "White Deer", 41, "C"], ["79078", 0, "Sanford", 44, "C"], ["79025", 0, "Dawn", 44, "C"], ["79092", 0, "Vega", 44, "C"], ["79039", 0, "Groom", 44, "C"], ["79042", 0, "Happy", 46, "D"], ["79007", 0, "Borger", 48, "D"], ["79008", 0, "Borger", 48, "D"], ["79091", 0, "Umbarger", 49, "D"], ["79080", 0, "Skellytown", 51, "D"], ["79029", 0, "Dumas", 52, "D"], ["79065", 0, "Pampa", 54, "D"], ["79066", 0, "Pampa", 55, "D"], ["79083", 0, "Stinnett", 56, "D"], ["79045", 0, "Hereford", 57, "D"], ["79018", 0, "Channing", 57, "D"], ["79001", 0, "Adrian", 58, "D"], ["79094", 0, "Wayside", 59, "D"], ["79013", 0, "Cactus", 61, "E"], ["79088", 0, "Tulia", 61, "E"], ["79226", 0, "Clarendon", 62, "E"], ["79086", 0, "Sunray", 65, "E"], ["79002", 0, "Alanreed", 66, "E"], ["79054", 0, "Lefors", 66, "E"], ["79085", 0, "Summerfield", 67, "E"], ["79044", 0, "Hartley", 68, "E"], ["79063", 0, "Nazareth", 68, "E"], ["79240", 0, "Lelia Lake", 70, "E"], ["79062", 0, "Morse", 73, "E"], ["79057", 0, "McLean", 74, "E"], ["79027", 0, "Dimmitt", 75, "E"], ["79052", 0, "Kress", 76, "F"], ["79237", 0, "Hedley", 76, "F"], ["79059", 0, "Miami", 77, "F"], ["79043", 0, "Hart", 79, "F"], ["79035", 0, "Friona", 80, "F"], ["79084", 0, "Stratford", 81, "F"], ["79257", 0, "Silverton", 84, "F"], ["79061", 0, "Mobeetie", 85, "F"], ["79022", 0, "Dalhart", 86, "F"], ["79032", 0, "Edmonson", 86, "F"], ["79073", 0, "Plainview", 86, "F"], ["79081", 0, "Spearman", 87, "F"], ["79040", 0, "Gruver", 88, "F"], ["79072", 0, "Plainview", 88, "F"], ["79245", 0, "Memphis", 89, "F"], ["88411", 0, "Bard", 92, "G"], ["79239", 0, "Lakeview", 92, "G"], ["79009", 0, "Bovina", 93, "G"], ["79064", 0, "Olton", 93, "G"], ["79251", 0, "Quail", 93, "G"], ["79053", 0, "Lazbuddie", 95, "G"], ["79011", 0, "Briscoe", 95, "G"], ["79079", 0, "Shamrock", 95, "G"], ["79051", 0, "Kerrick", 96, "G"], ["79093", 0, "Waka", 96, "G"], ["79096", 0, "Wheeler", 96, "G"], ["79041", 0, "Hale Center", 97, "G"], ["79031", 0, "Earth", 98, "G"], ["88434", 0, "San Jon", 98, "G"], ["79082", 0, "Springlake", 99, "G"], ["79014", 0, "Canadian", 100, "G"], ["88112", 0, "Broadview", 101, "G"], ["73949", 1, "Texhoma", 101, "G"], ["79221", 0, "Aiken", 101, "G"], ["79255", 1, "Quitaque", 101, "G"], ["79258", 1, "South Plains", 101, "G"], ["79241", 1, "Lockney", 102, "G"], ["79033", 1, "Farnsworth", 103, "G"], ["79233", 1, "Estelline", 103, "G"], ["79077", 1, "Sam Norwood", 104, "G"], ["79261", 1, "Turkey", 105, "G"], ["79325", 0, "Farwell", 105, "G"], ["79326", 1, "Fieldton", 105, "G"], ["88135", 0, "Texico", 106, "H"], ["79003", 1, "Allison", 106, "Z"], ["79095", 1, "Wellington", 107, "Z"], ["88120", 0, "Grady", 109, "H"], ["79347", 1, "Muleshoe", 109, "Z"], ["79369", 1, "Spade", 110, "Z"], ["73939", 1, "Goodwell", 111, "Z"], ["79070", 1, "Perryton", 112, "Z"], ["88426", 0, "Logan", 113, "H"], ["79021", 1, "Cotton Center", 113, "Z"], ["79235", 1, "Floydada", 113, "Z"], ["79250", 1, "Petersburg", 113, "Z"], ["79311", 0, "Abernathy", 114, "G"], ["79312", 1, "Amherst", 114, "Z"], ["88101", 0, "Clovis", 115, "H"], ["88102", 0, "Clovis", 115, "H"], ["79371", 1, "Sudan", 115, "Z"], ["73645", 1, "Erick", 116, "Z"], ["79259", 1, "Tell", 116, "Z"], ["73666", 1, "Sweetwater", 117, "Z"], ["79234", 1, "Flomot", 117, "Z"], ["73933", 1, "Boise City", 119, "Z"], ["79201", 1, "Childress", 119, "Z"], ["79230", 1, "Dodson", 119, "Z"], ["79339", 1, "Littlefield", 119, "Z"], ["73660", 1, "Reydon", 120, "Z"], ["73942", 1, "Guymon", 120, "Z"], ["79350", 0, "New Deal", 120, "G"], ["88401", 0, "Tucumcari", 121, "I"], ["88410", 0, "Amistad", 121, "I"], ["73944", 1, "Hardesty", 121, "Z"], ["73642", 1, "Durham", 122, "Z"], ["79087", 1, "Texline", 122, "Z"], ["79329", 1, "Idalou", 123, "Z"], ["73947", 1, "Keyes", 124, "Z"], ["79046", 1, "Higgins", 127, "Z"], ["88103", 0, "Cannon AFB", 128, "I"], ["79415", 0, "Lubbock", 128, "I"], ["73638", 1, "Crawford", 128, "Z"], ["79005", 1, "Booker", 128, "Z"], ["79320", 1, "Bula", 128, "Z"], ["73931", 1, "Balko", 130, "Z"], ["79343", 1, "Lorenzo", 130, "Z"], ["79403", 0, "Lubbock", 131, "I"], ["73662", 1, "Sayre", 131, "Z"], ["79231", 1, "Dougherty", 131, "Z"], ["79405", 0, "Lubbock", 132, "I"], ["79401", 0, "Lubbock", 132, "I"], ["79408", 0, "Lubbock", 132, "I"], ["79493", 0, "Lubbock", 132, "I"], ["79380", 1, "Whitharral", 132, "Z"], ["88130", 1, "Portales", 132, "Z"], ["88415", 1, "Clayton", 132, "Z"], ["79402", 0, "Lubbock", 133, "I"], ["79406", 0, "Lubbock", 133, "I"], ["79457", 0, "Lubbock", 133, "I"], ["79244", 1, "Matador", 133, "Z"], ["79313", 1, "Anton", 133, "Z"], ["79363", 1, "Shallowater", 133, "Z"], ["79366", 1, "Ransom Canyon", 133, "Z"], ["88133", 1, "Saint Vrain", 133, "Z"], ["79411", 0, "Lubbock", 134, "I"], ["79452", 0, "Lubbock", 134, "I"], ["79409", 0, "Lubbock", 135, "I"], ["79412", 0, "Lubbock", 135, "I"], ["79430", 0, "Lubbock", 135, "I"], ["79491", 0, "Lubbock", 135, "I"], ["73937", 1, "Felt", 135, "Z"], ["79056", 1, "Lipscomb", 135, "Z"], ["79324", 1, "Enochs", 135, "Z"], ["79357", 1, "Ralls", 135, "Z"], ["79410", 0, "Lubbock", 136, "Z"], ["79413", 0, "Lubbock", 136, "Z"], ["79490", 0, "Lubbock", 136, "Z"], ["79223", 1, "Cee Vee", 136, "Z"], ["79416", 0, "Lubbock", 137, "Z"], ["79414", 0, "Lubbock", 138, "Z"], ["79353", 1, "Pep", 138, "Z"], ["79404", 0, "Lubbock", 139, "Z"], ["79453", 0, "Lubbock", 139, "Z"], ["73901", 1, "Adams", 139, "Z"], ["73945", 1, "Hooker", 139, "Z"], ["79364", 1, "Slaton", 139, "Z"], ["79464", 0, "Lubbock", 140, "Z"], ["79499", 0, "Lubbock", 140, "Z"], ["73832", 1, "Arnett", 140, "Z"], ["79024", 1, "Darrouzett", 140, "Z"], ["79256", 1, "Roaring Springs", 140, "Z"], ["79322", 1, "Crosbyton", 141, "Z"], ["79382", 0, "Wolfforth", 143, "Z"], ["79424", 0, "Lubbock", 143, "Z"], ["67950", 1, "Elkhart", 143, "Z"], ["79336", 1, "Levelland", 143, "Z"], ["79338", 1, "Levelland", 143, "Z"], ["79344", 1, "Maple", 143, "Z"], ["88124", 1, "Melrose", 143, "Z"], ["79423", 0, "Lubbock", 144, "Z"], ["73858", 1, "Shattuck", 144, "Z"], ["79346", 1, "Morton", 144, "Z"], ["79407", 0, "Lubbock", 145, "Z"], ["73950", 1, "Turpin", 147, "Z"], ["79034", 1, "Follett", 147, "Z"], ["79243", 1, "McAdoo", 148, "Z"], ["79252", 1, "Quanah", 148, "Z"], ["67954", 1, "Rolla", 149, "Z"], ["79248", 1, "Paducah", 149, "Z"], ["79367", 1, "Smyer", 149, "Z"], ["88115", 1, "Dora", 149, "Z"], ["88132", 1, "Rogers", 150, "Z"], ["73843", 1, "Gage", 151, "Z"], ["73951", 1, "Tyrone", 152, "Z"], ["79220", 1, "Afton", 152, "Z"], ["73932", 1, "Beaver", 154, "Z"], ["73946", 1, "Kenton", 154, "Z"], ["79358", 1, "Ropesville", 154, "Z"], ["88416", 1, "Conchas Dam", 154, "Z"], ["79381", 0, "Wilson", 155, "Z"], ["88113", 1, "Causey", 155, "Z"], ["79379", 1, "Whiteface", 156, "Z"], ["88118", 1, "Floyd", 156, "Z"], ["79383", 0, "New Home", 157, "Z"], ["88116", 1, "Elida", 157, "Z"], ["67951", 1, "Hugoton", 158, "Z"], ["88424", 1, "Grenville", 159, "Z"], ["67901", 1, "Liberal", 160, "Z"], ["79229", 1, "Dickens", 160, "Z"], ["79345", 1, "Meadow", 160, "Z"], ["79225", 1, "Chillicothe", 161, "Z"], ["73938", 1, "Forgan", 162, "Z"], ["88123", 1, "Lingo", 162, "Z"], ["79356", 1, "Post", 163, "Z"], ["79373", 1, "Tahoka", 163, "Z"], ["67953", 1, "Richfield", 164, "Z"], ["88126", 1, "Pep", 165, "Z"], ["79314", 1, "Bledsoe", 166, "Z"], ["88122", 1, "Kenna", 167, "Z"], ["79370", 1, "Spur", 170, "Z"], ["88125", 1, "Milnesand", 170, "Z"], ["88134", 1, "Taiban", 170, "Z"], ["79316", 1, "Brownfield", 171, "Z"], ["67952", 1, "Moscow", 172, "Z"], ["79247", 1, "Odell", 172, "Z"], ["73848", 1, "Laverne", 174, "Z"], ["79372", 1, "Sundown", 174, "Z"], ["79351", 1, "Odonnell", 175, "Z"], ["88121", 1, "House", 175, "Z"], ["67859", 1, "Kismet", 176, "Z"], ["79236", 1, "Guthrie", 177, "Z"], ["79330", 1, "Justiceburg", 178, "Z"], ["67862", 1, "Manter", 179, "Z"], ["88114", 1, "Crossroads", 180, "Z"], ["67869", 1, "Plains", 183, "Z"], ["73855", 1, "Rosston", 183, "Z"], ["79355", 1, "Plains", 183, "Z"], ["79378", 1, "Wellman", 184, "Z"], ["67855", 1, "Johnson", 186, "Z"], ["79227", 1, "Crowell/Truscott", 186, "Z"], ["88414", 1, "Capulin", 186, "Z"], ["67870", 1, "Satanta", 187, "Z"], ["67880", 1, "Ulysses", 188, "Z"], ["79331", 1, "Lamesa", 193, "Z"], ["67877", 1, "Sublette", 194, "Z"], ["79342", 1, "Loop", 194, "Z"], ["79359", 1, "Seagraves", 195, "Z"], ["79377", 1, "Welch", 196, "Z"], ["79323", 1, "Denver City", 198, "Z"], ["79376", 1, "Tokio", 198, "Z"], ["88262", 1, "McDonald", 206, "Z"], ["79360", 1, "Seminole", 212, "Z"], ["67878", 1, "Syracuse", 213, "Z"], ["67860", 1, "Lakin", 215, "Z"], ["88260", 1, "Lovington", 218, "Z"], ["88242", 1, "Hobbs", 222, "Z"], ["88213", 1, "Caprock", 224, "Z"], ["67857", 1, "Kendall", 227, "Z"], ["88240", 1, "Hobbs", 241, "Z"], ["88244", 1, "Hobbs", 241, "Z"], ["67879", 1, "Tribune", 248, "Z"], ["67861", 1, "Leoti", 256, "Z"], ["88252", 1, "Jal", 280, "Z"]];
+const QCOL={0:'#1a9850',1:'#e02d3c'};
+const WAREHOUSE=[35.2819955,-101.8348046]; // 7301 Dumas Dr, Amarillo TX 79108
+// zone ring def: outer-edge driving mile + clean(concentric) flag + color
+const ZRING=[
+ ['A',15,true,'#1a9850'],['B',30,true,'#66bd63'],['C',45,true,'#a6d96a'],
+ ['D',60,true,'#d9b400'],['E',75,true,'#fdae61'],['F',90,true,'#f46d43'],
+ ['G',120,true,'#e34a33'],['H',115,false,'#cb181d'],['I',135,false,'#99000d'],
+ ['Z',155,false,'#6a1b9a']];
+const ZCOUNT={}; POINTS.forEach(p=>ZCOUNT[p[4]]=(ZCOUNT[p[4]]||0)+1);
+const ROAD=1.2; // driving->straight-line shrink so rings hug the dots
+const MI=1609.34;
+
+const map=L.map('map',{zoomControl:true}).setView(WAREHOUSE,7);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+  attribution:'&copy; OpenStreetMap &copy; CARTO',subdomains:'abcd',maxZoom:19}).addTo(map);
+
+const ptLayer=L.layerGroup().addTo(map);
+const ringLayers={};
+const bounds=[]; let done=0; let origin=null;
+
+function buildRings(lat,lon){
+  origin=[lat,lon];
+  ZRING.forEach(([z,mi,clean,col])=>{
+    const g=L.layerGroup();
+    const rMeters=(mi/ROAD)*MI;
+    L.circle([lat,lon],{radius:rMeters,color:col,weight:2.5,
+      dashArray:clean?null:'7 6',fill:false,opacity:.95}).addTo(g);
+    // label at north edge of ring
+    const dLat=(mi/ROAD)/69.0;
+    L.marker([lat+dLat,lon],{icon:L.divIcon({className:'',
+      html:'<span class="ringlbl" style="background:'+col+'">'+z+' · '+mi+'mi</span>',
+      iconSize:[60,16],iconAnchor:[30,8]})}).addTo(g);
+    g.addTo(map); ringLayers[z]=g;
+  });
+  L.marker([lat,lon]).addTo(map).bindPopup('<div class="pp"><b>AMA warehouse</b><br><span>7301 Dumas Dr, Amarillo TX 79108</span></div>');
+  buildLegend();
+}
+function buildLegend(){
+  const box=document.getElementById('rings'); box.innerHTML='';
+  ZRING.forEach(([z,mi,clean,col])=>{
+    const r=document.createElement('div');r.className='zr';r.id='lr'+z;
+    r.innerHTML='<span class="sw" style="border-top-color:'+col+';'+
+      (clean?'':'border-top-style:dashed;')+'"></span>Zone '+z+
+      ' <span class="mi">'+mi+'mi'+(clean?'':' *')+'</span>'+
+      '<span class="c">'+(ZCOUNT[z]||0)+'</span>';
+    r.onclick=()=>ringToggle(z); box.appendChild(r);
+  });
+  const note=document.createElement('div');note.style.cssText='font-size:9px;color:var(--mut);margin-top:6px;line-height:1.4;';
+  note.innerHTML='* H / I / Z overlap by distance (directional far clusters, not clean rings). Rings drawn straight-line from terminal; labels are the zone\u2019s drive-mile outer edge.';
+  box.appendChild(note);
+}
+function ringToggle(z){const r=document.getElementById('lr'+z);if(!ringLayers[z])return;
+  if(map.hasLayer(ringLayers[z])){map.removeLayer(ringLayers[z]);r.classList.add('off');}
+  else{map.addLayer(ringLayers[z]);r.classList.remove('off');}}
+let allOn=true;
+document.getElementById('allrings').onclick=()=>{allOn=!allOn;
+  ZRING.forEach(([z])=>{const r=document.getElementById('lr'+z);
+    if(allOn){map.addLayer(ringLayers[z]);r&&r.classList.remove('off');}
+    else{map.removeLayer(ringLayers[z]);r&&r.classList.add('off');}});};
+
+function addMarker(p,lat,lon){
+  const [zip,q,city,dist,zone]=p;
+  const m=L.circleMarker([lat,lon],{radius:6,color:'#333',weight:1.2,
+    fillColor:QCOL[q],fillOpacity:.92});
+  m.bindPopup('<div class="pp"><b>'+zip+'</b> &mdash; <span>'+city+'</span><br>'+
+    '<span>Distance: '+dist+' mi &middot; Zone '+zone+'</span><br>'+
+    '<span class="tag '+(q?'red':'grn')+'">'+(q?'QUOTE ONLY':'SERVED')+'</span></div>');
+  m.addTo(ptLayer); bounds.push([lat,lon]);
+}
+async function geocode(zip){
+  try{const r=await fetch('https://api.zippopotam.us/us/'+zip);if(!r.ok)return null;
+    const j=await r.json();const pl=j.places&&j.places[0];if(!pl)return null;
+    return [parseFloat(pl.latitude),parseFloat(pl.longitude)];}catch(e){return null;}
+}
+function tick(){
+  done++;const pct=Math.round(done/POINTS.length*100);
+  document.getElementById('pct').textContent=pct+'%';
+  document.querySelector('#bar>div').style.width=pct+'%';
+  if(done===POINTS.length){
+    if(bounds.length)map.fitBounds(bounds,{padding:[40,40]});
+    document.getElementById('prog').innerHTML='Plotted '+bounds.length+' / '+POINTS.length+' zips';
+  }
+}
+async function worker(q){while(q.length){const p=q.shift();const c=await geocode(p[0]);
+  if(c)addMarker(p,c[0],c[1]);tick();}}
+(function(){buildRings(WAREHOUSE[0],WAREHOUSE[1]);
+  const q=POINTS.slice();
+  for(let i=0;i<8;i++)worker(q);})();
+</script>
+</body>
+</html>
